@@ -22,7 +22,10 @@ public class UserMapper {
             user.getId(),
             user.getName(),
             user.getEmail(),
-            user.getSystemRole()
+            user.getSystemRole(),
+            user.getActive(),
+            user.getCreatedAt(),
+            user.getUpdatedAt()
         );
     }
 }
