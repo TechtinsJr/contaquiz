@@ -24,7 +24,7 @@ public class User extends BaseEntity {
     private SystemRole systemRole;
 
     public User() {
-        this.setActive(false);
+        this.setActive(true);
     }
 
     public String getName() {
