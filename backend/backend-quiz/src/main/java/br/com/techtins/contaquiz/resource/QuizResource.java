@@ -1,5 +1,6 @@
 package br.com.techtins.contaquiz.resource;
 
+import br.com.techtins.contaquiz.dto.quiz.GenerateQuizRequest;
 import br.com.techtins.contaquiz.dto.quiz.QuizRequest;
 import br.com.techtins.contaquiz.dto.quiz.QuizResponse;
 import br.com.techtins.contaquiz.dto.response.PaginatedResponse;
@@ -89,6 +90,16 @@ public class QuizResource {
     @RolesAllowed("ADMIN")
     public Response update(@PathParam("id") Long id, @Valid QuizRequest dto) {
         return Response.ok(quizMapper.toResponse(quizService.update(id, dto))).build();
+    }
+
+    @POST
+    @Path("/generate")
+    @RolesAllowed({"ADMIN", "ALUNO"})
+    public Response generate(@Valid GenerateQuizRequest dto) {
+        Long currentUserId = resolveCurrentUserId();
+        return Response.status(201)
+            .entity(quizMapper.toResponse(quizService.generate(dto, currentUserId)))
+            .build();
     }
 
     @DELETE
