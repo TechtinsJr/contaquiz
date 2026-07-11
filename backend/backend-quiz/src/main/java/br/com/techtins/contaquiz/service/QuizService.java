@@ -2,20 +2,28 @@ package br.com.techtins.contaquiz.service;
 
 import br.com.techtins.contaquiz.dto.quiz.GenerateQuizRequest;
 import br.com.techtins.contaquiz.dto.quiz.QuizRequest;
+import br.com.techtins.contaquiz.dto.quiz.QuizResultResponse;
 import br.com.techtins.contaquiz.exception.BusinessException;
 import br.com.techtins.contaquiz.exception.ResourceNotFoundException;
 import br.com.techtins.contaquiz.mapper.QuizMapper;
+import br.com.techtins.contaquiz.mapper.QuizResultMapper;
 import br.com.techtins.contaquiz.model.DifficultyLevel;
 import br.com.techtins.contaquiz.model.Discipline;
 import br.com.techtins.contaquiz.model.Question;
+import br.com.techtins.contaquiz.model.QuestionOption;
 import br.com.techtins.contaquiz.model.Quiz;
+import br.com.techtins.contaquiz.model.QuizResult;
+import br.com.techtins.contaquiz.model.QuizResultCorrection;
 import br.com.techtins.contaquiz.model.QuizVisibility;
 import br.com.techtins.contaquiz.model.User;
 import br.com.techtins.contaquiz.repository.DisciplineRepository;
 import br.com.techtins.contaquiz.repository.QuestionRepository;
 import br.com.techtins.contaquiz.repository.QuizRepository;
+import br.com.techtins.contaquiz.repository.QuizResultRepository;
 import br.com.techtins.contaquiz.repository.UserRepository;
 import io.quarkus.hibernate.orm.panache.PanacheQuery;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.hibernate.Hibernate;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -47,6 +55,15 @@ public class QuizService {
 
     @Inject
     QuizMapper quizMapper;
+
+    @Inject
+    QuizResultRepository quizResultRepository;
+
+    @Inject
+    QuizResultMapper quizResultMapper;
+
+    @PersistenceContext
+    EntityManager entityManager;
 
     public PanacheQuery<Quiz> findAll(String title, Long disciplineId, Long currentUserId) {
         StringBuilder jpql = new StringBuilder("SELECT q FROM Quiz q WHERE 1=1");
@@ -316,5 +333,107 @@ public class QuizService {
     public void delete(Long id) {
         Quiz quiz = findById(id);
         quiz.setActive(false);
+    }
+
+    /**
+     * Submete as respostas de um quiz, realiza correção automática,
+     * persiste o resultado com snapshot da explicação e incrementa
+     * os contadores globais das questões de forma atômica.
+     *
+     * @param quizId              ID do quiz
+     * @param answers             Mapa { questionId -> selectedOptionIndex }
+     * @param timeSpentInSeconds  Tempo gasto em segundos (opcional)
+     * @param userId              ID do usuário logado
+     * @return QuizResultResponse com correções detalhadas
+     */
+    @Transactional
+    public QuizResultResponse submit(Long quizId, Map<Long, Integer> answers,
+                                      Integer timeSpentInSeconds, Long userId) {
+        Quiz quiz = quizRepository.findById(quizId);
+        if (quiz == null) {
+            throw new ResourceNotFoundException("Quiz não encontrado: " + quizId);
+        }
+
+        User user = userRepository.findById(userId);
+        if (user == null) {
+            throw new ResourceNotFoundException("Usuário não encontrado: " + userId);
+        }
+
+        // Força o carregamento das questões e suas opções
+        Hibernate.initialize(quiz.getQuestions());
+        Set<Question> questions = quiz.getQuestions();
+
+        if (questions.isEmpty()) {
+            throw new BusinessException("Quiz não possui questões cadastradas");
+        }
+
+        int correctCount = 0;
+        int totalQuestions = questions.size();
+        List<QuizResultCorrection> corrections = new ArrayList<>();
+
+        for (Question question : questions) {
+            Hibernate.initialize(question.getOptions());
+
+            Integer userAnswer = answers != null ? answers.get(question.getId()) : null;
+
+            // Encontra o índice da opção correta
+            List<QuestionOption> options = question.getOptions();
+            int correctAnswer = -1;
+            for (int i = 0; i < options.size(); i++) {
+                if (Boolean.TRUE.equals(options.get(i).getIsCorrect())) {
+                    correctAnswer = i;
+                    break;
+                }
+            }
+
+            boolean isCorrect = userAnswer != null && correctAnswer >= 0
+                && userAnswer.intValue() == correctAnswer;
+
+            if (isCorrect) {
+                correctCount++;
+            }
+
+            // Cria a correção com snapshot da explicação
+            QuizResultCorrection correction = new QuizResultCorrection();
+            correction.setQuestion(question);
+            correction.setUserAnswer(userAnswer);
+            correction.setCorrectAnswer(correctAnswer);
+            correction.setCorrect(isCorrect);
+            correction.setExplanationSnapshot(question.getExplanation());
+
+            corrections.add(correction);
+        }
+
+        int wrongCount = totalQuestions - correctCount;
+
+        // Monta e persiste o resultado consolidado
+        QuizResult result = new QuizResult();
+        result.setUser(user);
+        result.setQuiz(quiz);
+        result.setCorrectAnswers(correctCount);
+        result.setWrongAnswers(wrongCount);
+        result.setTotalQuestions(totalQuestions);
+        result.setTimeSpentInSeconds(timeSpentInSeconds != null ? timeSpentInSeconds : 0);
+        result.setPassingScore(quiz.getPassingScore() != null ? quiz.getPassingScore() : 0);
+        result.calculatePercentage();
+
+        for (QuizResultCorrection correction : corrections) {
+            result.addCorrection(correction);
+        }
+
+        quizResultRepository.persist(result);
+
+        // Incrementa os contadores das questões de forma atômica (thread-safe)
+        for (QuizResultCorrection correction : corrections) {
+            int correctInc = correction.isCorrect() ? 1 : 0;
+            entityManager.createQuery(
+                "UPDATE Question q SET q.timesAnswered = q.timesAnswered + 1, " +
+                "q.timesCorrect = q.timesCorrect + :correctInc WHERE q.id = :id")
+                .setParameter("correctInc", correctInc)
+                .setParameter("id", correction.getQuestion().getId())
+                .executeUpdate();
+        }
+
+        return quizResultMapper.toResponse(result);
     }
 }
