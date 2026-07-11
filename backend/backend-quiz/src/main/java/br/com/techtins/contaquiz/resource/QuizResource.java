@@ -3,9 +3,12 @@ package br.com.techtins.contaquiz.resource;
 import br.com.techtins.contaquiz.dto.quiz.GenerateQuizRequest;
 import br.com.techtins.contaquiz.dto.quiz.QuizRequest;
 import br.com.techtins.contaquiz.dto.quiz.QuizResponse;
+import br.com.techtins.contaquiz.dto.quiz.QuizResultResponse;
+import br.com.techtins.contaquiz.dto.quiz.QuizSubmitRequest;
 import br.com.techtins.contaquiz.dto.response.PaginatedResponse;
 import br.com.techtins.contaquiz.exception.ResourceNotFoundException;
 import br.com.techtins.contaquiz.mapper.QuizMapper;
+import br.com.techtins.contaquiz.mapper.QuizResultMapper;
 import br.com.techtins.contaquiz.model.Quiz;
 import br.com.techtins.contaquiz.model.User;
 import br.com.techtins.contaquiz.repository.UserRepository;
@@ -26,6 +29,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+
+import java.util.Map;
+
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 @Path("/api/quizzes")
@@ -38,6 +44,9 @@ public class QuizResource {
 
     @Inject
     QuizMapper quizMapper;
+
+    @Inject
+    QuizResultMapper quizResultMapper;
 
     @Inject
     JsonWebToken jwt;
@@ -100,6 +109,16 @@ public class QuizResource {
         return Response.status(201)
             .entity(quizMapper.toResponse(quizService.generate(dto, currentUserId)))
             .build();
+    }
+
+    @POST
+    @Path("/{id}/submit")
+    @RolesAllowed({"ADMIN", "ALUNO"})
+    public Response submit(@PathParam("id") Long id, @Valid QuizSubmitRequest dto) {
+        Long currentUserId = resolveCurrentUserId();
+        QuizResultResponse result = quizService.submit(
+            id, dto.answers(), dto.timeSpentInSeconds(), currentUserId);
+        return Response.status(201).entity(Map.of("data", result)).build();
     }
 
     @DELETE

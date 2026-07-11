@@ -561,3 +561,23 @@ SELECT setval('tb_discipline_id_seq',       COALESCE((SELECT MAX(id) FROM tb_dis
 SELECT setval('tb_topic_id_seq',            COALESCE((SELECT MAX(id) FROM tb_topic), 27));
 SELECT setval('tb_question_id_seq',         COALESCE((SELECT MAX(id) FROM tb_question), 24));
 SELECT setval('tb_question_option_id_seq',  COALESCE((SELECT MAX(id) FROM tb_question_option), 78));
+
+-- ============================================================
+-- 5. EXEMPLO DE RESULTADO DE QUIZ (opcional - descomente se houver quizzes)
+--    Nota: Resultados são normalmente criados via API.
+--    Estes inserts servem como referência para testes manuais.
+-- ============================================================
+-- INSERT INTO tb_quiz_result (id, user_id, quiz_id, correct_answers, wrong_answers, total_questions, percentage, time_spent_in_seconds, passing_score, active, created_at, updated_at)
+-- VALUES (1, 1, 1, 4, 2, 6, 66.67, 120, 0, TRUE, NOW(), NOW());
+--
+-- INSERT INTO tb_quiz_result_correction (result_id, question_id, user_answer, correct_answer, is_correct, explanation_snapshot)
+-- VALUES
+--   (1, 1, 0, 0, TRUE,  'A Resolução CFC nº 750/93 ...'),
+--   (1, 2, 1, 0, FALSE, 'O art. 178 da Lei 6.404/76 ...'),
+--   (1, 3, 0, 0, TRUE,  'Definição correta. O CPC 03 (R2) ...'),
+--   (1, 4, 0, 0, TRUE,  'O ICMS incidente na compra ...'),
+--   (1, 5, 2, 0, FALSE, 'Pela equação fundamental ...'),
+--   (1, 6, 0, 1, FALSE, 'Afirmativa FALSA. O regime de competência ...');
+--
+-- SELECT setval('tb_quiz_result_id_seq',           COALESCE((SELECT MAX(id) FROM tb_quiz_result), 1));
+-- SELECT setval('tb_quiz_result_correction_id_seq', COALESCE((SELECT MAX(id) FROM tb_quiz_result_correction), 6));
