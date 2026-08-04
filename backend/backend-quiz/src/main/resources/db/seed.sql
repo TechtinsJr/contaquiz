@@ -23,7 +23,8 @@
 -- DELETE FROM tb_discipline;
 
 INSERT INTO tb_user (active, created_at, email, name, password_hash, updated_at, system_role)
-VALUES(true, now(), 'admin@quiz.com', 'admin', '$argon2id$v=19$m=65536,t=3,p=4$ZGVpemFTUW1NQ0ptTTlmWA$SdYmDivBQlyr2AwXAdV6uXTiyIU5llODBxtqkj8C6p4', now(), 'ADMIN');
+VALUES
+  (true, now(), 'admin@quiz.com', 'admin', '$argon2id$v=19$m=65536,t=3,p=4$ZGVpemFTUW1NQ0ptTTlmWA$SdYmDivBQlyr2AwXAdV6uXTiyIU5llODBxtqkj8C6p4', now(), 'ADMIN');
 
 --------------------------------------------------------------
 -- 1. DISCIPLINAS
